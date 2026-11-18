@@ -2,8 +2,8 @@
 
 Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi số dưới đây lấy từ report do `python -m lab9.eval` sinh ra (`src/reports/*.json`), không gõ tay.
 
-- **Run ID / eval set SHA:** baseline `E-swarm-20261118-c550` · eval set `c550a4c5b5e2`
-- **Phiên bản:** code commit `7472a13` (baseline + reports, nhánh `starter/d09`) · eval set v1 (sha `c550a4c5b5e2`) · metric_spec `1.0` · graders `src/lab9/graders.py` @ `7472a13` · seeds 11/22/33/44/55 · MockLLM · Python 3.11.9 (CI: 3.13)
+- **Run ID / eval set SHA:** baseline `E-swarm-20261118-2f14` · eval set `2f14bfc0f2d4`
+- **Phiên bản:** code: nhánh `starter/d09`, commit chứa `src/reports/baseline_v1.json` · eval set v1 (sha `2f14bfc0f2d4`) · metric_spec `1.0` · graders `src/lab9/graders.py` (M3, commit `3e16606`) · seeds 11/22/33/44/55 · MockLLM · Python 3.11.9 (CI: 3.13)
 - **Eval set:** v1, 14 item × 5 seed = 70 trial, nguồn `lab8_public` (ma trận T01–T14). Nhãn ở `data/eval/labels_v1.json`, tách khỏi item. Mỗi item có `failure_modes` theo `docs/failure_taxonomy.md`. `evalset --check` = 0 problem.
 
 ## Metric & ngưỡng (trích `config/metric_spec.yaml`)

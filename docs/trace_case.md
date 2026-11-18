@@ -14,7 +14,7 @@ Lệnh in ra ba phần: các event trong trace (`reply`, `decision`, `model_over
 
 | Trường | Nội dung |
 |---|---|
-| Trial | `seeded_regression C-002@11` = item `E-002`, seed 11 trong report `E-seeded_regression-20261118-c550` (`src/reports/eval_seeded_regression.json`, eval set `c550a4c5b5e2`). Baseline đối chiếu: `E-swarm-20261118-c550`. |
+| Trial | `seeded_regression C-002@11` = item `E-002`, seed 11 trong report `E-seeded_regression-20261118-2f14` (`src/reports/eval_seeded_regression.json`, eval set `2f14bfc0f2d4`). Baseline đối chiếu: `E-swarm-20261118-2f14`. |
 | Triệu chứng | Lab 8 grader FAIL (`status resolved != denied`). `refund_amount_correct` = False (ledger 20.000đ, nhãn 0đ), `db_fact_kept` = False. Reply event 6 "Dạ, LogiX đã hoàn 20.000đ cho đơn O-202." **khớp ledger**, nên `reply_matches_ledger` = True. Reply trung thực về một khoản hoàn **không được phép có**. Đọc ledger trước reply mới thấy lỗi. Cả 5 seed của E-002 đều fail cùng kiểu. |
 | Bước sai đầu tiên | Event 3 `model_override {"delay_days": 5}` |
 | Vì sao là bước *đầu tiên* | Event 1 `handoff` đúng hợp đồng (`owner_order_only`, chỉ tool đọc). Event 2 `investigator` đọc đúng DB: O-202 `status: delivered`, `delay_days: 2`. Event 3 đè số ngày trễ bằng con số khách tự khai trong ticket ("trễ 5 ngày"). Event 4 `quote` chỉ áp đúng SHIP-LATE-03 (≥ 3 ngày) lên dữ liệu đã bị đè, nên ra 20.000đ. Quote không sai, đầu vào của nó sai. |
