@@ -83,6 +83,38 @@ Thước đo chính thức `python -m lab9.mutation --detect` chỉ xét các d�
 - **Bug 1/3 seed (`rare`) không phát hiện ổn định được với 5 seed.** `flaky_regression` chỉ bật khi `seed % 3 == 0`. Với seed 11/22/33/44/55 chỉ có 33 kích hoạt, với 66/77/88/99/110 có 66 và 99. Với bộ seed như 11/22/44/55/100 thì **không seed nào** kích hoạt: mình đã chạy thử, `flaky_regression` cho `pass_rate` = `pass_hat_5` = 1.0, giống hệt `fixed`, nên **không metric nào có thể chặn**. Phát hiện được hay không phụ thuộc vào bộ seed, không phụ thuộc vào gate. Cách xử lý là tăng số seed hoặc chạy lặp, **không** hạ ngưỡng cho tới khi gate "bắt được" nó.
 - Với p = 1/3 lỗi mỗi lần chạy, xác suất 5 lần chạy độc lập đều sạch là (2/3)^5 ≈ 13%. Muốn xác suất bỏ sót dưới 1% cần khoảng 12 lần chạy mỗi item.
 
+## Chống gian lận eval (M7)
+`gate.integrity_check` từ chối so sánh khi report hoặc spec không đáng tin, và báo lý do `INTEGRITY`. Kết quả `python -m lab9.traps --pr reports/eval_slice_regression.json --baseline reports/baseline_v2.json --spec config/metric_spec_v2.yaml` là exit 0: gate chặn cả 4 trap công khai.
+
+| Trap | Lý do gate exit 1 |
+|---|---|
+| `evaluator_errors_as_nan` | `INTEGRITY 18 graded value(s) missing or not bool …` (kèm metric NaN) |
+| `dropped_failing_rows` | `INTEGRITY 131 rows, manifest says 28 items x 5 seeds = 140` |
+| `cherry_picked_seeds` | `INTEGRITY manifest items/seeds 28/[22, 44] differ from the baseline's …` |
+| `loosened_spec` (`--base-spec`) | `INTEGRITY ratchet: metric db_fact_kept min loosened 0.95 -> 0.65` (cùng các ngưỡng/slice khác) |
+
+Các kiểm tra trong `integrity_check`:
+1. Metric NaN/inf.
+2. `evaluator_failures` khác rỗng, kể cả trên run xanh. Dòng thiếu hoặc không phải bool ở metric được chấm theo dòng.
+3. (item, seed) trùng lặp. Số dòng ≠ items × seeds. Manifest khác baseline hoặc khác spec. Tập (item, seed) khác baseline.
+4. **Tính lại metric tổng từ các dòng**, rồi so với số được báo cáo.
+5. Slice tag của item khác baseline.
+6. Ratchet trên cùng eval-set version: max/`max_increase` không được tăng, min không được giảm, không bỏ `no_significant_drop`, không bỏ metric hay slice, không bỏ blocking, không đổi eval_set/labels/seeds, không hạ độ tin cậy bootstrap.
+
+**Trap ẩn có thể còn lọt.** Mình đã tự thử thêm 6 trap ngoài bộ công khai, và gate chặn cả 6:
+- dòng trùng lặp thay chỗ dòng fail
+- `evaluator_failures` trên run xanh
+- sửa tay `metrics.pass_rate`
+- lật dòng fail thành pass rồi báo metric cũ
+- gỡ item khỏi slice `money_movement`
+- bỏ `pass_hat_5` hoặc tắt blocking của `pass_rate`
+
+Những gì gate **không** chứng minh được:
+- **Sửa nhất quán cả dòng lẫn tổng** (lật `pass_rate` False thành True rồi tính lại metric). Report vẫn tự khớp. Muốn chặn phải chạy lại eval trong CI từ code, không tin report do PR nộp. `eval-gate` đã làm vậy với `swarm`, và `ci_check` so baseline với lần chạy lại của CI.
+- **Sửa nhãn** hoặc **sửa grader/spec cùng lúc với baseline**. `eval_set_sha` chỉ băm file item, không băm `labels_v*.json` hay code grader. Nên đưa SHA của labels và grader vào manifest.
+- **Ratchet chỉ chạy khi có `--base-spec`.** Nếu CI không truyền spec của `main`, một PR nới ngưỡng vẫn lọt. Spec của `main` phải được lấy từ nhánh được bảo vệ.
+- **Đổi `eval_set_version`** để "bắt đầu lại" ngưỡng. Ratchet cố ý bỏ qua khi version khác, nên cần con người duyệt mọi lần tăng version.
+
 ## Trace case
 `docs/trace_case.md`: `seeded_regression C-002@11`, bước sai đầu tiên là event 3 `model_override {"delay_days": 5}` (DB = 2), FM-03. Regression test ở `src/tests/test_lab9_trace_case.py` (fail-detect trên variant lỗi, pass trên `fixed`).
 
