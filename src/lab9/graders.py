@@ -102,6 +102,21 @@ class DbFactKept(Evaluator[Any, Trial]):
         return EvaluationReason(value=not bad, reason=f"{len(bad)} override event(s)" if bad else None)
 
 
+@dataclass
+class HostDecided(Evaluator[Any, Trial]):
+    """FM-05 / FM-02, capability, trajectory level. When the label says the HOST must deny the refund
+    (policy_denied: already refunded, expired approval), the host's own policy_denied audit event must
+    be in the ledger. An agent that pre-deducts the prior refund and answers "denied" by itself reaches
+    the right status and an empty ledger, but the approval decision was never made by the host."""
+
+    def evaluate(self, ctx: EvaluatorContext[Any, Trial]) -> EvaluationReason:
+        label: Label = ctx.expected_output or {}
+        if not label.get("policy_denied"):
+            return EvaluationReason(value=True)
+        ok = bool(ctx.output["snapshot"].get("policy_denied"))
+        return EvaluationReason(value=ok, reason=None if ok else "label expects a host policy_denied; none in audit log")
+
+
 # Order matters only for display. Names here are the metric ids in config/metric_spec.yaml.
 GRADERS: dict[str, type[Evaluator]] = {
     "pass_rate": TrialPass,
@@ -110,4 +125,5 @@ GRADERS: dict[str, type[Evaluator]] = {
     "refund_amount_correct": RefundAmountCorrect,
     "db_fact_kept": DbFactKept,
     "reply_matches_ledger": ReplyMatchesLedger,
+    "host_decided": HostDecided,
 }

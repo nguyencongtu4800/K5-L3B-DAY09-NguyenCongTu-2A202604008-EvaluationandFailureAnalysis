@@ -19,3 +19,6 @@ metrics:
   # empty ledger. lab8 trial_pass reads only the ledger, so a misreport still passes pass_rate.
   - {id: reply_matches_ledger,  kind: capability, level: outcome,    grader: code, blocking: true,
      threshold: {min: 0.95, no_significant_drop: true}}
+  # FM-05 / FM-02: when the label expects a host denial, the host's policy_denied audit event must exist
+  # (an agent that pre-deducts and denies by itself gets status + ledger right but bypasses the host).
+  - {id: host_decided,          kind: capability, level: trajectory, grader: code, threshold: {min: 0.95}, blocking: true}
