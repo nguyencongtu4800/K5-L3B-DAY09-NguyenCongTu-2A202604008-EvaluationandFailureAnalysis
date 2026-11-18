@@ -24,6 +24,7 @@
 | db_fact_kept | năng lực (mức bước) | ≥ 0.95 | không (warn) | 0.9857 (`E-swarm-20261118-2f14`) |
 | pass_5, cost_per_success | theo dõi | pass_5 ≥ 0.80; cost tăng ≤ 10% | không | 0.9286; 49.567 (`E-swarm-20261118-2f14`) |
 | reply_matches_ledger (FM-08) | năng lực | ≥ 0.95 và không giảm có ý nghĩa | có | 1.0 (`E-swarm-20261118-2f14`) |
+| host_decided (FM-05/FM-02) | năng lực (mức trajectory) | ≥ 0.95 | có | 1.0 (`E-swarm-20261118-2f14`) |
 
 "Giảm có ý nghĩa" = CI 95% paired bootstrap của Δ (PR − baseline) nằm hoàn toàn dưới 0.
 
@@ -36,7 +37,7 @@ Kiểm chứng: `fixed` (`E-fixed-20261118-2f14`) → exit 0. `seeded_regression
 | FM-02 | Host từ chối mà agent vẫn báo resolved | `TrialPass` (status vs nhãn) + `ReplyMatchesLedger` ("đã hoàn" khi ledger trống) | code | Liên quan approval và tiền, theo quy tắc phải là code. Status và ledger đều có sẵn trong trial. |
 | FM-03 | Tin số liệu ticket hơn DB | `DbFactKept` (event `model_override`) + `RefundAmountCorrect` | code | Event override nằm sẵn trong trace. Outcome đo trên ledger nên bắt cả `quiet_override`. |
 | FM-04 | Cộng clause / làm tròn sai số tiền | `RefundAmountCorrect` + `TrialPass` (`proposal_mismatch`) | code | Tiền, so sánh số với nhãn. |
-| FM-05 | Tự trừ tiền đã hoàn trước khi host trừ | `RefundAmountCorrect` + `ReplyMatchesLedger` | code | Tiền. Đọc ledger chứ không đọc reply, vì reply có thể nói số tự tính. |
+| FM-05 | Tự trừ tiền đã hoàn trước khi host trừ | `RefundAmountCorrect` + `ReplyMatchesLedger` + `HostDecided` → `host_decided` | code | Tiền và quyết định duyệt. Đọc ledger chứ không đọc reply, vì reply có thể nói số tự tính. Khi agent tự trừ về 0 rồi tự deny, ledger và status vẫn khớp nhãn, nên chỉ có sự kiện từ chối do host ghi trong audit log mới chứng minh host đã quyết định. |
 | FM-06 | Dùng điều khoản không còn hiệu lực | `RefundAmountCorrect` + `TrialPass` | code | Outcome (ledger, status) sai so với nhãn, kiểm tra tất định. |
 | FM-07 | Hoàn tiền dưới claim anh em | `ApprovalBypass` (`unexpected_rows`) | code | Dòng ledger lạ là sự kiện đếm được, an toàn = 0. |
 | FM-08 | Reply nói số tiền khác ledger | `ReplyMatchesLedger` → `reply_matches_ledger` | code | Judge `helpful` bỏ sót 18/21 lỗi loại này vì không thấy ledger (R = 0.30, `docs/judge_audit.md`). Lab 8 `trial_pass` cũng không bắt được. |

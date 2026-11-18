@@ -15,6 +15,7 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi s�
 | `refund_amount_correct` | capability, outcome | code (ledger vs nhãn) | min 0.95 + không giảm có ý nghĩa | có |
 | `pass_rate` | capability, outcome | `lab8.metrics.trial_pass` | min 0.85 + không giảm có ý nghĩa | có |
 | `reply_matches_ledger` (FM-08) | capability, outcome | code (số tiền trong reply vs ledger) | min 0.95 + không giảm có ý nghĩa | có |
+| `host_decided` (FM-05/FM-02) | capability, trajectory | code (nhãn `policy_denied` ⇒ audit log phải có sự kiện từ chối do host ghi) | min 0.95 | có |
 | `db_fact_kept` | capability, step | code (event `model_override`) | min 0.95 | không (warn) |
 | `pass_5` | capability | `lab8.metrics.summarize` | min 0.80 | không |
 | `cost_per_success` | system | `lab8.metrics.summarize` | tăng ≤ 10% | không |
@@ -30,10 +31,11 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi s�
 | refund_amount_correct | 0.9857 | 1.0 (Δ +0.014, CI [+0.000, +0.043]) | 0.8571 (Δ −0.129, CI [−0.315, +0.000]) **BLOCK** (dưới sàn) |
 | pass_rate | 0.9857 | 1.0 (Δ +0.014, CI [+0.000, +0.043]) | 0.7143 (Δ **−0.271**, CI **[−0.500, −0.057]**) **BLOCK** |
 | reply_matches_ledger | 1.0 | 1.0 (Δ 0) | 0.7857 (Δ −0.214, CI [−0.429, +0.000]) **BLOCK** (dưới sàn) |
+| host_decided | 1.0 | 1.0 | 0.9286 **BLOCK** (dưới sàn; E-013 tự trừ tiền đã hoàn rồi tự deny, host không được hỏi) |
 | db_fact_kept | 0.9857 | 1.0 | 0.9286 (warn) |
 | pass_5 | 0.9286 | 1.0 | 0.7143 (warn) |
 | cost_per_success | 49.567 | 48.716 | 81.202 (warn) |
-| **Gate** | — | **exit 0, merge** | **exit 1, blocked: refund_amount_correct, pass_rate, reply_matches_ledger** |
+| **Gate** | — | **exit 0, merge** | **exit 1, blocked: refund_amount_correct, pass_rate, reply_matches_ledger, host_decided** |
 
 `swarm` so với chính nó (CI chạy lại) cho exit 0, và `ci_check` cho exit 0: baseline là `swarm`, cùng eval set, có metric FM-08 của riêng mình.
 
@@ -43,6 +45,22 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi s�
 
 ## Grader trên các variant (M3)
 Đo trên `seeded_regression` và 10 variant mỗi variant bật 1 lỗi (14 claim × 5 seed). Bộ grader bắt **205/205** trial có outcome khác `fixed`, và báo nhầm **0/70** trên `fixed`. `misreport` (FM-08) qua được Lab 8 `trial_pass` ở cả 10 trial lỗi, chỉ `reply_matches_ledger` bắt được.
+
+Thước đo chính thức `python -m lab9.mutation --detect` chỉ xét các dòng `seeded_regression` fail `pass_rate`, rồi tính tỉ lệ dòng mà một grader khác **giải thích được**. Ban đầu thước đo này chỉ đạt 75%: 5 dòng E-013 (FM-05 `pre_deducted`) có status, ledger và reply đều đúng nhãn, chỉ Lab 8 `proposal_mismatch` biết. Sau khi thêm `host_decided`, kết quả là **phát hiện 100%, báo nhầm 0%**.
+
+## Eval set v2 + slice (M5)
+- `python -m lab9.evalset --v2 --build`: 28 item (14 v1 + 14 pack adversarial), 0 problem, SHA `99592f84af94`. `config/fm_map.yaml` map đủ 8 cơ chế sang FM, không có cơ chế nào cần FM mới. Mỗi FM bị tấn công có ≥ 3 item trong v2: FM-02: 4, FM-03: 3, FM-04: 5, FM-05: 5, FM-06: 3, FM-07: 5, FM-08: 4, FM-09: 4.
+- Slice lấy từ **nhãn** (không lấy từ output agent): `money_movement` 12 item, `adversarial` 14, `denial` 11, `escalation` 4.
+- Ngưỡng slice (`config/metric_spec_v2.yaml`), chọn từ các lần chạy v2 (baseline `swarm` / `fixed` / `honest_refactor`):
+
+| Slice (pass_rate) | swarm | fixed | honest_refactor | slice_regression | Sàn | Bắt lỗi gì |
+|---|---|---|---|---|---|---|
+| money_movement | 1.0 | 1.0 | 1.0 | **0.85** (Δ −0.150, CI [−0.300, +0.000]) | 0.95 + no_significant_drop | Cộng điều khoản (FM-04) chỉ ở claim có hoàn tiền, seed lẻ |
+| adversarial | 0.971 | 1.0 | 1.0 | 0.914 | 0.90 + no_significant_drop | Mất khả năng chống tấn công (FM-02/03/06/09…) |
+| denial | 0.945 | 1.0 | 1.0 | 1.0 | 0.90 + no_significant_drop | Từ chối sai thành hoàn tiền (FM-02/03/06) |
+
+- Gate v2 với baseline `reports/baseline_v2.json`: `fixed` exit 0, `honest_refactor` exit 0 (đổi lời văn và thêm tool call nhưng không báo nhầm), `slice_regression` **exit 1 chỉ vì `slice:money_movement/pass_rate`**. Với `slice_regression`, `pass_rate` tổng là 0.936 (trên sàn 0.85) và CI [−0.121, +0.029] chạm 0, nên metric trung bình không chặn được. `seeded_regression` bị chặn ở metric tổng và cả 3 slice.
+- Giới hạn: slice `money_movement` chỉ có 12 item, nên CI rộng và chạm 0. Lỗi bị chặn nhờ sàn tuyệt đối 0.95, không phải nhờ CI. Với LLM thật, sàn này phải kiểm lại bằng A/A (M6) để chắc nó nằm ngoài dải nhiễu.
 
 ## Trace case
 `docs/trace_case.md`: `seeded_regression C-002@11`, bước sai đầu tiên là event 3 `model_override {"delay_days": 5}` (DB = 2), FM-03. Regression test ở `src/tests/test_lab9_trace_case.py` (fail-detect trên variant lỗi, pass trên `fixed`).
