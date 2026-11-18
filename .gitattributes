@@ -1,0 +1,2 @@
+# Eval-set SHA is computed over raw bytes; keep line endings identical on Windows and CI (Linux).
+*.jsonl text eol=lf
