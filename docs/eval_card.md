@@ -62,6 +62,27 @@ Thước đo chính thức `python -m lab9.mutation --detect` chỉ xét các d�
 - Gate v2 với baseline `reports/baseline_v2.json`: `fixed` exit 0, `honest_refactor` exit 0 (đổi lời văn và thêm tool call nhưng không báo nhầm), `slice_regression` **exit 1 chỉ vì `slice:money_movement/pass_rate`**. Với `slice_regression`, `pass_rate` tổng là 0.936 (trên sàn 0.85) và CI [−0.121, +0.029] chạm 0, nên metric trung bình không chặn được. `seeded_regression` bị chặn ở metric tổng và cả 3 slice.
 - Giới hạn: slice `money_movement` chỉ có 12 item, nên CI rộng và chạm 0. Lỗi bị chặn nhờ sàn tuyệt đối 0.95, không phải nhờ CI. Với LLM thật, sàn này phải kiểm lại bằng A/A (M6) để chắc nó nằm ngoài dải nhiễu.
 
+## Nhiễu A/A và pass^k (M6)
+- **A/A:** `python -m lab9.mutation --spec config/metric_spec_v2.yaml --aa 66,77,88,99,110` chạy cùng agent `swarm` trên 2 bộ seed (11/22/33/44/55 và 66/77/88/99/110). **Δ = 0.0000 trên mọi metric**, nên dải nhiễu là [0, 0].
+- **Vì sao Δ = 0 trên MockLLM:** MockLLM tất định theo (seed, prompt). Lỗi duy nhất của `swarm` (tin ticket khi `seed % 5 == 0`) xuất hiện đúng 1 lần ở cả hai bộ seed (55 và 110), nên mọi metric trùng nhau.
+- **Vì sao với LLM thật dải nhiễu > 0:** LLM thật lấy mẫu có nhiệt độ, nên cùng prompt cùng seed vẫn có thể ra câu trả lời hay tool call khác. Phía nhà cung cấp còn có batching, phiên bản model và thứ tự số học GPU không tất định. Vì vậy chạy cùng một agent hai lần sẽ cho `pass_rate` lệch vài điểm phần trăm. Nếu sàn hoặc ngưỡng Δ nằm **trong** dải đó, gate sẽ chặn ngẫu nhiên các PR vô hại (báo nhầm) và người dùng sẽ học cách lờ gate đi. Sàn phải đặt **ngoài** dải nhiễu đo bằng A/A: chạy A/A nhiều lần, lấy |Δ| lớn nhất (hoặc phân vị 95%), rồi đặt sàn thấp hơn baseline ít nhất một khoảng như vậy.
+- **`pass_hat_5` (blocking, min 0.85):** tỉ lệ item pass ở **cả 5** seed, tức là đo độ tin cậy chứ không đo chất lượng trung bình. Baseline `swarm` = 0.8929 (25/28 item, 1 item ≈ 0.036). Sàn 0.85 thấp hơn baseline khoảng 1 item, nằm ngoài dải A/A [0, 0]. Đây chỉ là sàn tuyệt đối: `pass_hat_5` là metric cấp tổng (các dòng không có giá trị theo item), nên paired bootstrap của gate không có gì để resample.
+
+| Variant (spec v2) | pass_rate | Δ pass_rate, CI | pass_hat_5 | Gate |
+|---|---|---|---|---|
+| swarm (baseline) | 0.9786 | — | 0.8929 | exit 0 |
+| fixed | 1.0 | +0.021 [+0.000, +0.043] | 1.0 | merge |
+| honest_refactor | 1.0 | +0.021 [+0.000, +0.043] | 1.0 | merge |
+| slice_regression | 0.9357 | −0.043 [−0.121, +0.029] | 0.8929 | block, **chỉ** `slice:money_movement` |
+| flaky_regression | 0.9143 | −0.064 [−0.114, −0.014] | **0.5714** | block: `pass_rate`, **`pass_hat_5`**, `slice:money_movement` |
+
+- **Vì sao `pass_rate` trung bình không chặn `flaky_regression` ổn định:** lỗi chỉ bật ở 1/5 seed, nên trung bình chỉ tụt 0.064. CI [−0.114, −0.014] nằm sát 0, nên chỉ cần thêm một chút nhiễu (LLM thật) là CI chạm 0 và gate cho qua. `pass_hat_5` khuếch đại lỗi: một seed fail là cả item mất điểm, nên chỉ số tụt 0.32 (0.893 xuống 0.571), cách sàn rất xa.
+- **Scorecard:** `python -m lab9.mutation --spec config/metric_spec_v2.yaml --baseline reports/baseline_v2.json` cho **3/3 regression bị chặn, 0 báo nhầm** (exit 0).
+
+## Giới hạn cỡ mẫu
+- **Bug 1/3 seed (`rare`) không phát hiện ổn định được với 5 seed.** `flaky_regression` chỉ bật khi `seed % 3 == 0`. Với seed 11/22/33/44/55 chỉ có 33 kích hoạt, với 66/77/88/99/110 có 66 và 99. Với bộ seed như 11/22/44/55/100 thì **không seed nào** kích hoạt: mình đã chạy thử, `flaky_regression` cho `pass_rate` = `pass_hat_5` = 1.0, giống hệt `fixed`, nên **không metric nào có thể chặn**. Phát hiện được hay không phụ thuộc vào bộ seed, không phụ thuộc vào gate. Cách xử lý là tăng số seed hoặc chạy lặp, **không** hạ ngưỡng cho tới khi gate "bắt được" nó.
+- Với p = 1/3 lỗi mỗi lần chạy, xác suất 5 lần chạy độc lập đều sạch là (2/3)^5 ≈ 13%. Muốn xác suất bỏ sót dưới 1% cần khoảng 12 lần chạy mỗi item.
+
 ## Trace case
 `docs/trace_case.md`: `seeded_regression C-002@11`, bước sai đầu tiên là event 3 `model_override {"delay_days": 5}` (DB = 2), FM-03. Regression test ở `src/tests/test_lab9_trace_case.py` (fail-detect trên variant lỗi, pass trên `fixed`).
 
